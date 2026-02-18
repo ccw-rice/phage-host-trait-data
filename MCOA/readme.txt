@@ -4,13 +4,12 @@ This repository contains the scripts used to construct the host life-history str
 
 All analyses were performed on the Rice University NOTSX high-performance computing cluster using GTDB species-level aggregated genomic trait matrices.
 
-This pipeline consists of three main steps:
+This pipeline consists of two main steps:
 
 Construction of host strategy space using MCOA
 
 Identification of key variables contributing to MCOA axes
 
-Correlation analysis between key variables and prophage burden
 
 Input Data
 
@@ -116,6 +115,7 @@ best_vars_axis1_filtered.tsv
 best_vars_axis2_filtered.tsv
 best_vars_axis3_filtered.tsv
 filter_summary.tsv
+
 
 
 These represent variables strongly associated with host strategy axes.
