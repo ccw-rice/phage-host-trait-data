@@ -6,7 +6,7 @@ suppressPackageStartupMessages({
 })
 
 # =========================
-# 路径（仅这里改变）
+# Paths (only changed here)
 # =========================
 boot_dir  <- "/root/mcoa_project/mcoa_bootstrap_dt_balanced"
 vir_file  <- "/root/mcoa_project/data_raw/Virulent.merged_mean.tsv"
@@ -16,7 +16,7 @@ out_dir   <- "/root/mcoa_project/virulent_trend_aligned_dt"
 dir.create(out_dir, showWarnings=FALSE)
 
 # =========================
-# 工具函数
+# Utility functions
 # =========================
 clean_id <- function(x){
   x <- trimws(x)
@@ -25,14 +25,14 @@ clean_id <- function(x){
 }
 
 # =========================
-# full data（参考坐标系）
+# Full dataset (reference coordinate system)
 # =========================
 full <- fread(full_file)
 full <- full[, .(id, x_full = SynVar1, y_full = SynVar2)]
 full[, id := clean_id(id)]
 
 # =========================
-# virulent 数据（完全不改）
+# Virulent phage data (unchanged)
 # =========================
 vir <- fread(vir_file)
 
@@ -43,7 +43,7 @@ vir[] <- lapply(vir, function(x)
   suppressWarnings(as.numeric(as.character(x)))
 )
 
-# ✔ 核心：rowSums（本来就是正确的）
+# Core step: rowSums (already correct)
 vir$count <- rowSums(vir, na.rm=TRUE)
 
 vir <- data.table(
@@ -51,13 +51,13 @@ vir <- data.table(
   virulent = vir$count
 )
 
-# 只保留 virulent > 0
+# Retain only genomes with virulent > 0
 vir_pos <- vir[virulent > 0]
 
 cat("Total virulent genomes:", nrow(vir_pos), "\n")
 
 # =========================
-# bootstrap
+# Bootstrap analysis
 # =========================
 runs <- list.dirs(boot_dir, recursive=FALSE)
 
@@ -77,7 +77,7 @@ for (r in runs){
   dt[, id := clean_id(id)]
 
   # =========================
-  # 对齐到 full
+  # Align to full dataset
   # =========================
   df_align <- merge(dt, full, by="id")
 
@@ -95,7 +95,7 @@ for (r in runs){
   }
 
   # =========================
-  # virulent > 0
+  # Virulent > 0 genomes
   # =========================
   df <- merge(dt, vir_pos, by="id")
 
@@ -105,7 +105,7 @@ for (r in runs){
   }
 
   # =========================
-  # centroid
+  # Centroid
   # =========================
   res_list[[run_name]] <- data.table(
     run = run_name,
@@ -118,14 +118,14 @@ for (r in runs){
 res_all <- rbindlist(res_list)
 
 # =========================
-# 保存
+# Save results
 # =========================
 fwrite(res_all,
        file.path(out_dir, "virulent_centroids.tsv"),
        sep="\t")
 
 # =========================
-# 画图
+# Plot
 # =========================
 p <- ggplot(res_all, aes(x=x_mean, y=y_mean)) +
 
@@ -152,5 +152,5 @@ ggsave(
   dpi = 300
 )
 
-cat("\n🔥 DONE: virulent bootstrap cloud (dt-balanced)\n")
+cat("\nDONE: virulent bootstrap cloud (dt-balanced)\n")
 
