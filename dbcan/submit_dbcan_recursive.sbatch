@@ -9,30 +9,37 @@
 
 set -Eeuo pipefail
 
-# 必要变量通过 --export 传入
+# Required variables must be provided via --export
 LIST=${LIST:?LIST missing}
 WORKER=${WORKER:?WORKER missing}
 START=${START:?START missing}
 N=${N:?N missing}
-CHUNK=${CHUNK:-200}      # 每批任务数（按你们QOS调；200较稳）
-MAXPAR=${MAXPAR:-30}     # 每批内部并发（%30）
+CHUNK=${CHUNK:-200}      # Number of tasks per batch (adjust based on cluster/QOS; 200 is generally safe)
+MAXPAR=${MAXPAR:-30}     # Maximum concurrent tasks within each batch (%30)
 PARTITION=${PARTITION:-commons}
 
 END=$(( START + CHUNK - 1 ))
-if [[ $END -ge $N ]]; then END=$(( N - 1 )); fi
+if [[ $END -ge $N ]]; then
+  END=$(( N - 1 ))
+fi
+
 RANGE="${START}-${END}%${MAXPAR}"
 
-echo "[INFO] submit array: ${RANGE}"
+echo "[INFO] Submit array: ${RANGE}"
+
 jid=$(sbatch -p "$PARTITION" --array="$RANGE" "$WORKER" | awk '{print $4}')
-echo "[INFO] array jobid=${jid}"
+
+echo "[INFO] Array job ID=${jid}"
 
 NEXT=$(( END + 1 ))
+
 if [[ $NEXT -lt $N ]]; then
-  echo "[INFO] schedule next submitter for NEXT=${NEXT}"
+  echo "[INFO] Schedule next submitter with START=${NEXT}"
+
   sbatch -p "$PARTITION" \
     --dependency=afterok:${jid} \
     --export=ALL,LIST="$LIST",WORKER="$WORKER",START="$NEXT",N="$N",CHUNK="$CHUNK",MAXPAR="$MAXPAR",PARTITION="$PARTITION" \
     $0
 else
-  echo "[OK] all batches scheduled."
+  echo "[OK] All batches have been scheduled."
 fi
