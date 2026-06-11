@@ -11,7 +11,7 @@ set -Eeuo pipefail
 set -x
 trap 'echo "[ERR] line:$LINENO cmd:$BASH_COMMAND" >&2' ERR
 
-# --- 配置（按需改） ---
+# --- Configuration (modify as needed) ---
 export MAMBA_ROOT_PREFIX=/scratch/cw106/software
 ENV=/scratch/cw106/software/envs/dbcan_env
 DBROOT=/scratch/cw106/dbcan_db
@@ -20,34 +20,51 @@ OUTBASE=/scratch/cw106/run_dbcan_out
 LIST=/projects/alvarez/scripts/gcf_list.txt
 OUT_PRE=run1
 CPU=${SLURM_CPUS_PER_TASK:-16}
-# ----------------------
+# ----------------------------------------
 
-# 取当前任务对应的 GCF
+# Get the GCF corresponding to the current array task
 GCF=$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$LIST" || true)
 if [ -z "${GCF:-}" ]; then
-  echo "[WARN] No GCF for task $SLURM_ARRAY_TASK_ID"; exit 0; fi
+  echo "[WARN] No GCF for task $SLURM_ARRAY_TASK_ID"
+  exit 0
+fi
 
 INFA="$INDIR/$GCF/protein.faa"
 OUTD="$OUTBASE/$GCF"
 mkdir -p "$OUTD"
 
-# 环境
+# Activate environment
 module purge || true
 eval "$($MAMBA_ROOT_PREFIX/bin/micromamba shell hook --shell bash)"
 micromamba activate "$ENV"
 export PATH="$ENV/bin:$PATH"
 export PYTHONNOUSERSITE=1
 
-# 自检
-if [ ! -s "$INFA" ]; then echo "[WARN] missing input: $INFA ; skip"; exit 0; fi
-test -s "$DBROOT/dbCAN-HMMdb-V14.txt" || { echo "[FATAL] missing: $DBROOT/dbCAN-HMMdb-V14.txt"; exit 2; }
-test -s "$DBROOT/CAZy.dmnd"          || { echo "[FATAL] missing: $DBROOT/CAZy.dmnd"; exit 2; }
+# Sanity checks
+if [ ! -s "$INFA" ]; then
+  echo "[WARN] Missing input: $INFA ; skipping"
+  exit 0
+fi
 
-which python; python --version
+test -s "$DBROOT/dbCAN-HMMdb-V14.txt" || {
+  echo "[FATAL] Missing: $DBROOT/dbCAN-HMMdb-V14.txt"
+  exit 2
+}
+
+test -s "$DBROOT/CAZy.dmnd" || {
+  echo "[FATAL] Missing: $DBROOT/CAZy.dmnd"
+  exit 2
+}
+
+which python
+python --version
+
 echo "[INFO] GCF=$GCF"
+
 diamond dbinfo -d "$DBROOT/CAZy.dmnd" | head -n 5 || true
 
-# 运行（run-dbcan==2.0.11 无 --cpu 总参，只能分别设 hmm_cpu/dia_cpu）
+# Run dbCAN (run-dbcan==2.0.11 has no global --cpu option;
+# CPU threads must be specified separately for HMMER and DIAMOND)
 python "$ENV/bin/run_dbcan.py" \
   "$INFA" protein \
   --out_dir "$OUTD" \
@@ -58,12 +75,18 @@ python "$ENV/bin/run_dbcan.py" \
   --hmm_cpu "$CPU" --hmm_eval 1e-15 --hmm_cov 0.35 \
   --dia_cpu "$CPU" --dia_eval 1e-102
 
-# 统一命名 & 容错
+# Standardize output naming and perform validation
 OV1="$OUTD/${OUT_PRE}overview.txt"
+
 [ -s "$OV1" ] && ln -sf "$OV1" "$OUTD/overview.tsv"
+
 if [ ! -s "$OUTD/overview.tsv" ] && [ ! -s "$OV1" ]; then
-  if [ ! -s "$OUTD/${OUT_PRE}hmmer.out" ] && [ ! -s "$OUTD/${OUT_PRE}diamond.out" ]; then
-    echo "[FATAL] No outputs found in $OUTD"; ls -lah "$OUTD" || true; exit 4;
+  if [ ! -s "$OUTD/${OUT_PRE}hmmer.out" ] && \
+     [ ! -s "$OUTD/${OUT_PRE}diamond.out" ]; then
+
+    echo "[FATAL] No outputs found in $OUTD"
+    ls -lah "$OUTD" || true
+    exit 4
   fi
 fi
 
