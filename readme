@@ -1,0 +1,455 @@
+# Host Life-History Strategies Structure Phage Lifestyle Associations Across Bacterial Species
+
+## Overview
+
+This repository contains all scripts, pipelines, and analytical workflows used in:
+
+**Wu C., Mathieu J., Schwarz C., Whitaker M., Alvarez P.J.J.**
+
+**Host life-history strategies structure phage lifestyle associations across bacterial species**
+
+The goal of this study was to investigate whether bacterial host life-history strategies are associated with phage lifestyle distributions across species.
+
+Using 5,821 complete bacterial genomes, we integrated host genomic traits, functional annotations, resource-acquisition traits, anti-phage defense systems, CRISPR–Cas systems, prophage content, and virulent phage associations to construct a bacterial host life-history strategy space and evaluate how prophage burden and virulent phage associations are distributed across this landscape.
+
+---
+
+# Study Workflow
+
+```text
+Genome collection and quality control
+                │
+                ▼
+Host trait extraction
+(genomic + functional features)
+                │
+                ▼
+Construction of host life-history strategy space
+(MCOA)
+                │
+                ▼
+Mapping phage-associated signals
+(prophages + virulent phages)
+                │
+                ▼
+Functional trait analysis
+(microTrait)
+                │
+                ▼
+Robustness assessment
+(bootstrap MCOA)
+```
+
+---
+
+# Dataset
+
+## Genome collection
+
+Genomes were obtained from:
+
+* NCBI RefSeq Complete Genomes (October 2024)
+
+Quality control was performed using:
+
+* GTDB bac120 r226 criteria
+
+Final dataset:
+
+```text
+5,821 complete bacterial genomes
+44 bacterial phyla
+```
+
+Species-level analyses were conducted using GTDB taxonomy. Genomes belonging to the same GTDB species were aggregated when constructing species-level trait matrices.
+
+---
+
+# Host Trait Extraction Pipelines
+
+The following pipelines were used to generate host traits.
+
+## 1. Growth-rate prediction
+
+### gRodon2
+
+Purpose:
+
+* Predict minimal doubling time
+* Estimate maximal growth potential
+
+Input:
+
+```text
+cds_from_genomic.fna
+```
+
+Output:
+
+```text
+Predicted doubling time
+Growth-rate metrics
+```
+
+---
+
+## 2. rRNA operon copy number
+
+### Barrnap
+
+Purpose:
+
+* Predict 16S rRNA copy number
+* Predict 23S rRNA copy number
+* Predict 5S rRNA copy number
+
+Input:
+
+```text
+Genome FASTA
+```
+
+Output:
+
+```text
+copy_16S
+copy_23S
+copy_5S
+```
+
+---
+
+## 3. Functional annotation
+
+### eggNOG-mapper
+
+Purpose:
+
+* KEGG annotation
+* COG annotation
+* Functional category assignment
+
+Output:
+
+```text
+KEGG pathway profiles
+COG profiles
+```
+
+---
+
+## 4. CAZyme annotation
+
+### dbCAN
+
+Purpose:
+
+* Identify carbohydrate-active enzymes
+
+Output:
+
+```text
+CAZy family abundance profiles
+```
+
+These features were used as indicators of resource-acquisition capacity.
+
+---
+
+## 5. Anti-phage defense systems
+
+### DefenseFinder
+
+Purpose:
+
+Detection of:
+
+* Restriction-modification systems
+* CBASS
+* BREX
+* DISARM
+* Other defense systems
+
+Output:
+
+```text
+Defense system counts per genome
+```
+
+---
+
+## 6. CRISPR–Cas systems
+
+### CRISPRCasTyper
+
+Purpose:
+
+* Detect intact CRISPR–Cas systems
+* Quantify spacer burden
+* Determine CRISPR subtype composition
+
+Output:
+
+```text
+Presence/absence
+Spacer counts
+System types
+```
+
+---
+
+## 7. Functional trait inference
+
+### microTrait
+
+Purpose:
+
+Inference of microbial ecological traits related to:
+
+* Resource acquisition
+* Nutrient transport
+* Metabolism
+* Environmental adaptation
+
+Output:
+
+```text
+microTrait trait matrices
+```
+
+Used for downstream phage lifestyle association analyses.
+
+---
+
+# Phage Analyses
+
+## 1. Prophage Identification
+
+Prophages were identified using:
+
+* PhiSpy
+* Prodigal
+* HMMER
+* ISEScan
+
+Filtering criteria:
+
+```text
+≥1 integrase
+≥1 structural phage protein
+IS content <25%
+```
+
+Output:
+
+```text
+High-confidence prophage regions
+Prophage burden per genome
+```
+
+---
+
+## 2. Virulent Phage Identification
+
+Candidate phage genomes were collected from:
+
+* NCBI Virus
+* PhageScope
+
+Lifestyle classification was inferred using:
+
+* Integrase markers
+* Terminase large subunit (terL)
+* Lysis-associated genes
+
+Classification scheme:
+
+```text
+Temperate
+Strong virulent
+Virulent
+Uncertain
+```
+
+Only strong virulent phages were used to define virulent-phage hosts.
+
+---
+
+# Construction of Host Life-History Strategy Space
+
+Host life-history strategy space was constructed using:
+
+## Multiple Co-Inertia Analysis (MCOA)
+
+Input feature blocks:
+
+1. KEGG pathways
+2. COG categories
+3. CAZy families
+4. Genomic traits
+
+The genomic trait block included:
+
+* Genome size
+* GC content
+* Predicted doubling time
+* 16S rRNA copy number
+* Anti-phage defense system abundance
+
+Pipeline workflow:
+
+```text
+Adaptive transformation
+Data standardization
+PCA of individual tables
+MCOA integration
+Axis interpretation
+Variable selection
+```
+
+Outputs:
+
+```text
+Species coordinates
+Variable contributions
+Axis-associated traits
+```
+
+The resulting strategy space captures major gradients in bacterial life-history strategies, including genome size, metabolic versatility, resource-acquisition capacity, growth potential, and energy-allocation strategies.
+
+---
+
+# Phage Lifestyle Association Analyses
+
+The resulting MCOA space was used to evaluate:
+
+## Prophage-associated patterns
+
+* Lysogen vs non-lysogen comparisons
+* Prophage burden gradients
+* Spatial distributions in MCOA space
+
+## Virulent-phage-associated patterns
+
+* Virulent-host distributions
+* Relationships with prophage burden
+* Associations with host genomic traits
+
+## Functional trait analyses
+
+microTrait traits were evaluated using:
+
+* Cliff’s delta
+* Spearman correlation
+* False discovery rate (FDR) correction
+
+to identify functional signatures shared between:
+
+* Virulent-phage hosts
+* Prophage-rich hosts
+
+Shared traits were interpreted as convergent host functional investments associated with both phage lifestyle signals.
+
+---
+
+# Robustness Analysis
+
+To evaluate sensitivity to taxonomic sampling bias, we performed a bootstrap MCOA analysis.
+
+For each bootstrap iteration:
+
+1. Species were grouped by predicted doubling-time category.
+2. Species were stratified within phyla.
+3. Stratified resampling was performed.
+4. The complete MCOA workflow was rerun.
+
+A total of:
+
+```text
+50 bootstrap iterations
+```
+
+were performed.
+
+Stability was evaluated for:
+
+* Variable contributions
+* Species positions
+* MCOA structure
+* Downstream phage-associated spatial patterns
+
+---
+
+# Software Summary
+
+| Component             | Software       |
+| --------------------- | -------------- |
+| Growth prediction     | gRodon2        |
+| rRNA prediction       | Barrnap        |
+| Functional annotation | eggNOG-mapper  |
+| CAZyme annotation     | dbCAN          |
+| Defense systems       | DefenseFinder  |
+| CRISPR systems        | CRISPRCasTyper |
+| Functional traits     | microTrait     |
+| Prophages             | PhiSpy         |
+| IS elements           | ISEScan        |
+| Gene prediction       | Prodigal       |
+| Protein annotation    | HMMER          |
+| Ordination analysis   | ade4 (MCOA)    |
+
+---
+
+# Computational Environment
+
+All analyses were performed on the Rice University NOTSX High-Performance Computing Cluster using Slurm-based batch processing workflows.
+
+---
+
+# Repository Structure
+
+```text
+.
+├── MCOA/
+├── Bootstrap/
+├── gRodon2/
+├── Barrnap/
+├── eggNOG/
+├── dbCAN/
+├── microTrait/
+├── DefenseFinder/
+├── CRISPRCasTyper/
+├── Prophage_detection/
+├── Virulent_phage_detection/
+├── figures/
+├── scripts/
+└── manuscript/
+```
+
+---
+
+# Reproducibility
+
+All scripts required to reproduce the analyses are provided in this repository. Individual subdirectories contain software-specific documentation, required databases, execution commands, input formats, and output descriptions.
+
+The complete workflow can be reproduced starting from bacterial genome assemblies and phage genome datasets, provided that the external databases required by each software package are installed.
+
+---
+
+# Citation
+
+If you use this repository, please cite:
+
+Wu C., Mathieu J., Schwarz C., Whitaker M., Alvarez P.J.J.
+
+**Host life-history strategies structure phage lifestyle associations across bacterial species.**
+
+---
+
+# Contact
+
+**Chuncheng Wu**
+Department of Civil and Environmental Engineering
+Rice University
+Houston, Texas, USA
+
+For questions regarding the pipelines, analyses, or data processing workflows, please open a GitHub issue or contact the corresponding authors listed in the manuscript.
