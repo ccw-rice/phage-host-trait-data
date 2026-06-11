@@ -6,7 +6,7 @@ suppressPackageStartupMessages({
 })
 
 # =========================
-# 路径（只改这里）
+# Paths (modify only here)
 # =========================
 boot_dir  <- "/root/mcoa_project/mcoa_bootstrap_dt_balanced"
 prop_file <- "/root/mcoa_project/data_raw/Prophage.merged_mean.tsv"
@@ -16,7 +16,7 @@ out_dir   <- "/root/mcoa_project/prophage_trend_aligned_dt"
 dir.create(out_dir, showWarnings=FALSE)
 
 # =========================
-# 工具函数
+# Utility functions
 # =========================
 clean_id <- function(x){
   x <- trimws(x)
@@ -25,26 +25,32 @@ clean_id <- function(x){
 }
 
 # =========================
-# full data（参考坐标系）
+# Full-data coordinates (reference coordinate system)
 # =========================
 full <- fread(full_file)
-full <- full[, .(id, x_full=SynVar1, y_full=SynVar2)]
+
+full <- full[, .(
+  id,
+  x_full = SynVar1,
+  y_full = SynVar2
+)]
+
 full[, id := clean_id(id)]
 
 # =========================
-# 🔥 prophage（完全按旧逻辑）
+# 🔥 Prophage counts (original logic retained)
 # =========================
 prop <- fread(prop_file)
 
 rn <- prop[[1]]
 prop[[1]] <- NULL
 
-# 全部转 numeric
+# Convert all columns to numeric
 prop[] <- lapply(prop, function(x)
   suppressWarnings(as.numeric(as.character(x)))
 )
 
-# ✔ 核心：rowSums
+# Core calculation: row sums
 prop$count <- rowSums(prop, na.rm=TRUE)
 
 prop <- data.table(
@@ -52,11 +58,11 @@ prop <- data.table(
   prophage = round(prop$count)
 )
 
-# ✔ 分组（完全复制旧逻辑）
+# Grouping (exactly following original logic)
 prop[, group := ifelse(prophage >= 6, 6, prophage)]
 
 # =========================
-# bootstrap
+# Bootstrap runs
 # =========================
 runs <- list.dirs(boot_dir, recursive=FALSE)
 
@@ -65,15 +71,24 @@ all_centroids <- list()
 for (r in runs){
 
   run_name <- basename(r)
+
   f <- file.path(r, "samples.tsv")
-  if (!file.exists(f)) next
+
+  if (!file.exists(f))
+    next
 
   dt <- fread(f)
-  dt <- dt[, .(id, x=SynVar1, y=SynVar2)]
+
+  dt <- dt[, .(
+    id,
+    x = SynVar1,
+    y = SynVar2
+  )]
+
   dt[, id := clean_id(id)]
 
   # =========================
-  # 对齐到 full（关键）
+  # Align bootstrap coordinates to full-data reference
   # =========================
   df_align <- merge(dt, full, by="id")
 
@@ -86,17 +101,17 @@ for (r in runs){
   }
 
   # =========================
-  # 合并 prophage
+  # Merge prophage information
   # =========================
   df <- merge(dt, prop, by="id")
 
   # =========================
-  # 计算 centroid
+  # Calculate group centroids
   # =========================
   cent <- df[, .(
     x_mean = mean(x),
     y_mean = mean(y)
-  ), by=group]
+  ), by = group]
 
   cent[, run := run_name]
 
@@ -106,37 +121,69 @@ for (r in runs){
 centroids_all <- rbindlist(all_centroids)
 
 # =========================
-# 平均轨迹
+# Mean trajectory across bootstrap runs
 # =========================
 centroid_mean <- centroids_all[, .(
   x_mean = mean(x_mean),
   y_mean = mean(y_mean),
   x_sd   = sd(x_mean),
   y_sd   = sd(y_mean)
-), by=group]
+), by = group]
 
 # =========================
-# 保存
+# Save results
 # =========================
-fwrite(centroids_all,
-       file.path(out_dir, "centroids_all.tsv"), sep="\t")
+fwrite(
+  centroids_all,
+  file.path(out_dir, "centroids_all.tsv"),
+  sep="\t"
+)
 
-fwrite(centroid_mean,
-       file.path(out_dir, "centroid_mean.tsv"), sep="\t")
+fwrite(
+  centroid_mean,
+  file.path(out_dir, "centroid_mean.tsv"),
+  sep="\t"
+)
 
 # =========================
-# 画图（完全保留）
+# Plot trajectory (original version retained)
 # =========================
-p <- ggplot(centroid_mean, aes(x=x_mean, y=y_mean)) +
-  geom_point(size=3) +
-  geom_errorbar(aes(ymin=y_mean-y_sd, ymax=y_mean+y_sd), width=0.05) +
-  geom_errorbarh(aes(xmin=x_mean-x_sd, xmax=x_mean+x_sd), height=0.05) +
-  geom_text(aes(label=group), vjust=-1) +
-  labs(x="MCOA1", y="MCOA2",
-       title="Prophage trajectory (dt-balanced)") +
-  theme_bw(base_size=14)
+p <- ggplot(
+  centroid_mean,
+  aes(x = x_mean, y = y_mean)
+) +
+  geom_point(size = 3) +
+  geom_errorbar(
+    aes(
+      ymin = y_mean - y_sd,
+      ymax = y_mean + y_sd
+    ),
+    width = 0.05
+  ) +
+  geom_errorbarh(
+    aes(
+      xmin = x_mean - x_sd,
+      xmax = x_mean + x_sd
+    ),
+    height = 0.05
+  ) +
+  geom_text(
+    aes(label = group),
+    vjust = -1
+  ) +
+  labs(
+    x = "MCOA1",
+    y = "MCOA2",
+    title = "Prophage trajectory (dt-balanced)"
+  ) +
+  theme_bw(base_size = 14)
 
-ggsave(file.path(out_dir, "trajectory_mean.png"),
-       p, width=6, height=5, dpi=300)
+ggsave(
+  file.path(out_dir, "trajectory_mean.png"),
+  p,
+  width = 6,
+  height = 5,
+  dpi = 300
+)
 
 cat("\n🔥 DONE: prophage (dt-balanced, aligned)\n")
