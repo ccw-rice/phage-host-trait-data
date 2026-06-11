@@ -8,40 +8,45 @@
 #SBATCH -e /projects/alvarez/logs/lifestyle_call.%j.err
 
 set -euo pipefail
+
 echo "[START] $(date)"
 
-# ────────── 1. 环境（与你之前所有成功任务一致：micromamba） ──────────
+# ────────── 1. Environment (same micromamba setup used by previous successful jobs) ──────────
 module purge
 module use /opt/apps/modules/Core
 module --ignore_cache load Miniforge3/24.11.3-0
 
 export MAMBA_ROOT_PREFIX=/scratch/cw106/software
+
 eval "$($MAMBA_ROOT_PREFIX/bin/micromamba shell hook --shell bash)"
+
 micromamba activate phatyp_v1
 
 echo "[INFO] Python:"
 which python
 python -V
 
-# ────────── 2. 输入 / 输出路径 ──────────
+# ────────── 2. Input and output paths ──────────
 export LIST_TSV=/scratch/cw106/phage_id_list_2col.ALL15k.tsv
 
-# prodigal + hmmsearch 的输出根目录
+# Output root directory from prodigal + hmmsearch
 export OUT_ROOT=/scratch/cw106/phage_hmm_out_all15k
 
-# 原始 phage genome 所在目录（用于算 genome length）
+# Original phage genome directory
+# (used to calculate genome length)
 export DATA_ROOT=/scratch/cw106/phagescope_data_resource
 
-# HMM / list 数据库
+# HMM and gene-list databases
 export DB_DIR=/projects/alvarez/virus_hmm_db
 export INTEG_LIST=$DB_DIR/integrase_unified.list
 export TERL_LIST=$DB_DIR/terL.list
 export LYSIS_LIST=$DB_DIR/lysis_genes.list
 
-# 最终输出表
+# Final output table
 export OUT_TSV=/scratch/cw106/phage_lifestyle_calls_all15k.tsv
 
-# ────────── 3. 基本存在性检查（快速 fail，避免 silent error） ──────────
+# ────────── 3. Basic file existence checks
+#             (fail fast to avoid silent errors) ──────────
 for f in \
   "$LIST_TSV" \
   "$INTEG_LIST" \
@@ -54,7 +59,7 @@ do
   fi
 done
 
-# ────────── 4. 运行判定脚本 ──────────
+# ────────── 4. Run lifestyle classification script ──────────
 python /projects/alvarez/scripts/call_lifestyle_from_tbl.py
 
 echo "[DONE] $(date)"
