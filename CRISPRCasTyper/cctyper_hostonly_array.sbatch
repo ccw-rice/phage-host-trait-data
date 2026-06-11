@@ -13,7 +13,7 @@ echo "[INFO] Hostname: $(hostname)"
 echo "[INFO] SLURM_JOB_ID=${SLURM_JOB_ID}, TASK_ID=${SLURM_ARRAY_TASK_ID}"
 
 ##################################
-# 1) 激活 CCTyper 环境（和你刚才登录节点一样）
+# 1) Activate CCTyper environment
 ##################################
 module purge
 module use /opt/apps/modules/Core
@@ -27,7 +27,7 @@ echo "[INFO] which cctyper:"
 which cctyper || { echo "[ERROR] cctyper not found in PATH"; exit 1; }
 
 ##################################
-# 2) 设置 CCTYPER_DB
+# 2) Set CCTYPER_DB
 ##################################
 export CCTYPER_DB=/scratch/cw106/cctyper_db/data
 if [[ ! -d "$CCTYPER_DB" ]]; then
@@ -37,19 +37,19 @@ fi
 echo "[INFO] Using CCTYPER_DB=$CCTYPER_DB"
 
 ##################################
-# 3) MANIFEST & 输出目录（host-only 版本）
+# 3) Manifest and output directory (host-only version)
 ##################################
 MANIFEST=/scratch/cw106/displace_prophage/crispr_defense_manifest_hostonly.txt
 OUTDIR_ROOT=/scratch/cw106/displace_prophage/crisprcas_out_hostonly
 mkdir -p "$OUTDIR_ROOT"
 
 ##################################
-# 4) 取本任务对应的 fna 路径
+# 4) Retrieve the input .fna file for this task
 ##################################
 fa=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$MANIFEST" || true)
 
 if [[ -z "${fa}" ]]; then
-    echo "[WARN] SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID} 对应行为空，退出"
+    echo "[WARN] No input file found for SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID}; exiting"
     exit 0
 fi
 
@@ -58,14 +58,14 @@ if [[ ! -s "$fa" ]]; then
     exit 1
 fi
 
-base=$(basename "$fa" .fna)   # 例如 GCF_000005845.2_host_only
+base=$(basename "$fa" .fna)   # e.g. GCF_000005845.2_host_only
 outdir="${OUTDIR_ROOT}/${base}_cctyper"
 
 ##################################
-# 5) 处理已存在目录的情况
+# 5) Handle existing output directory
 ##################################
 if [[ -d "$outdir" ]]; then
-    # 如果目录里已经有文件，认为之前跑成功，直接跳过
+    # If the directory already contains files, assume the job completed successfully
     if [[ $(ls -A "$outdir" 2>/dev/null | wc -l) -gt 0 ]]; then
         echo "[SKIP] $base already has CCTyper output in $outdir"
         exit 0
@@ -79,7 +79,7 @@ echo "[INFO] [$SLURM_ARRAY_TASK_ID] Running CCTyper on: $fa"
 echo "[INFO] Output dir: $outdir"
 
 ##################################
-# 6) 运行 CCTyper
+# 6) Run CCTyper
 ##################################
 set -x
 cctyper -t 4 "$fa" "$outdir"
