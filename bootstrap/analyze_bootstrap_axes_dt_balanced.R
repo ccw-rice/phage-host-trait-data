@@ -6,7 +6,7 @@ suppressPackageStartupMessages({
 })
 
 # =========================
-# 路径
+# paths
 # =========================
 
 boot_dir <- "/root/mcoa_project/mcoa_bootstrap_dt_balanced"
@@ -14,7 +14,7 @@ boot_dir <- "/root/mcoa_project/mcoa_bootstrap_dt_balanced"
 raw_dir  <- "/root/mcoa_project/data_raw"
 
 # =========================
-# 工具函数
+# tools
 # =========================
 
 get_rec_cols <- function(X){
@@ -89,7 +89,7 @@ clean_names <- function(x){
 }
 
 # =========================
-# 所有bootstrap
+# all bootstrap
 # =========================
 
 runs <- list.dirs(
@@ -117,7 +117,7 @@ for(r in runs){
     next
 
   # =========================
-  # 读取坐标
+  # read coordinates
   # =========================
 
   S <- fread(sample_file)
@@ -125,7 +125,7 @@ for(r in runs){
   ids <- S$id
 
   # =========================
-  # 读取原始矩阵
+  # read matrix
   # =========================
 
   files <- c(
@@ -180,7 +180,7 @@ for(r in runs){
   }
 
   # =========================
-  # 合并矩阵
+  # integrate matrix
   # =========================
 
   DF <- data.frame(
@@ -272,7 +272,7 @@ for(r in runs){
   )
 
   # =========================
-  # 如果Tco存在
+  # if Tco exits
   # =========================
 
   tco_file <- file.path(
