@@ -3,18 +3,22 @@
 """
 cctyper_intact_systems_v3.1.py  (CI/CA-free, optional --merge-near-as-orphan)
 
-统计口径：
-1) “完整系统”= 只要在 cas_operons.tab（*certain* operons）里就算；不再检查 CI/CA。
-2) 类型统计：Best_type（缺则 Prediction）映射到 Type I–VI，并记录具体亚型列表。
-3) cas 基因数：对 cas_operons.tab 的 Genes 列取长度求和。
-4) spacer 数：只统计与这些 operon 配对且 Trusted=TRUE 的阵列；
-   spacer 数优先读 spacers/CRISPR_ID.fa 的记录条数，找不到则回退 N_repeats-1；
-   同一阵列只计一次。
-5) orphan 阵列：优先 crisprs_orphan.tab（仅 Trusted）；若无则用 crisprs_all.tab 的 Trusted 阵列对
-   crisprs_near_cas.tab 做差集；spacer 统计同上。
-6) --merge-near-as-orphan：把“near 但未计入任何系统的 Trusted 阵列”并入 orphan 计数（仅在传该开关时计算/合并）。
+Counting rules:
+1) An "intact system" is defined solely by presence in cas_operons.tab (certain operons); CI/CA checks are no longer performed.
+2) System type statistics: Best_type (or Prediction if Best_type is missing) are mapped to Type I–VI, and subtype information is retained.
+3) Cas gene count: calculated as the summed length of the Genes column in cas_operons.tab.
+4) Spacer count: only Trusted arrays associated with intact operons are counted.
+   Spacer counts are obtained preferentially from spacers/CRISPR_ID.fa record counts;
+   if unavailable, N_repeats - 1 is used as a fallback.
+   Each array is counted only once.
+5) Orphan arrays: preferentially obtained from crisprs_orphan.tab (Trusted only).
+   If unavailable, Trusted arrays from crisprs_all.tab that are absent from
+   crisprs_near_cas.tab are treated as orphan arrays. Spacer counting follows
+   the same procedure described above.
+6) --merge-near-as-orphan: optionally merge Trusted near-Cas arrays that were
+   not assigned to any intact system into the orphan count.
 
-输出列：
+Output columns:
 - sample, has_intact_system, intact_systems, intact_cas_genes, intact_spacers
 - Type_I..Type_VI, intact_subtypes, intact_operons
 - orphan_trusted_arrays_count, orphan_trusted_spacers
@@ -33,7 +37,7 @@ def load_tab(p: Path) -> pd.DataFrame:
     return pd.read_csv(p, sep="\t", comment="#", low_memory=False)
 
 def ensure_col(df: pd.DataFrame, want: str, fallback_index: int | None = 1) -> pd.DataFrame:
-    """有些版本第二列才叫 CRISPR/Operon；兜底把第 fallback_index 列重命名为 want。"""
+    """In some versions the target column is stored as the second column; rename it as a fallback."""
     if df.empty or want in df.columns:
         return df
     if fallback_index is not None and df.shape[1] > fallback_index:
@@ -100,7 +104,7 @@ def summarise_dir(d: Path, merge_near_as_orphan: bool) -> dict:
     cc   = load_tab(d/"CRISPR_Cas.tab")
     near = load_tab(d/"crisprs_near_cas.tab")
     allc = load_tab(d/"crisprs_all.tab")
-    orph = load_tab(d/"crisprs_orphan.tab")  # 若不存在/空则为空 df
+    orph = load_tab(d/"crisprs_orphan.tab")  # Empty dataframe if file is absent or empty
 
     res = {
         "sample": sample,
@@ -118,24 +122,24 @@ def summarise_dir(d: Path, merge_near_as_orphan: bool) -> dict:
     if oper.empty:
         return res
 
-    # 类型/亚型/operon & 基因数
+    # Type / subtype / operon statistics and Cas gene count
     intact_operons = []
     intact_subtypes = []
     type_counts = {"Type_I":0,"Type_II":0,"Type_III":0,"Type_IV":0,"Type_V":0,"Type_VI":0}
     genes_total = 0
 
-    oper = ensure_col(oper, "Operon", 0)  # 多数版本第一列就是 Operon
+    oper = ensure_col(oper, "Operon", 0)
     for _, r in oper.iterrows():
         op = str(r["Operon"]).strip()
         intact_operons.append(op)
 
-        # 选择一个标签用来计数（Best_type 优先，其次 Prediction）
         subtype = None
         if "Best_type" in oper.columns and not pd.isna(r.get("Best_type")):
             s = parse_list(r["Best_type"])
             subtype = s[0] if s else None
         if not subtype:
             subtype = r.get("Prediction", None)
+
         if isinstance(subtype, str):
             intact_subtypes.append(subtype)
             tl = top_level_type(subtype)
@@ -149,20 +153,24 @@ def summarise_dir(d: Path, merge_near_as_orphan: bool) -> dict:
     res["intact_cas_genes"] = int(genes_total)
     res["intact_operons"] = ",".join(intact_operons)
     res["intact_subtypes"] = ",".join(intact_subtypes)
-    for k,v in type_counts.items():
+
+    for k, v in type_counts.items():
         res[k] = v
 
-    # 统计与这些 operon 配对的 Trusted 阵列的 spacer 数
+    # Count spacers from Trusted arrays associated with intact operons
     spacers_dir = d / "spacers"
     counted_arrays = set()
     spacers_sum = 0
 
     if not cc.empty:
         cc = ensure_col(cc, "Operon", 0)
+
         if "CRISPRs" not in cc.columns:
             cc["CRISPRs"] = ""
+
         near = ensure_col(near, "CRISPR", 1) if not near.empty else pd.DataFrame(columns=["CRISPR","Trusted","N_repeats"])
         near_min = near[["CRISPR","Trusted","N_repeats"]].copy() if not near.empty else pd.DataFrame(columns=["CRISPR","Trusted","N_repeats"])
+
         if not near_min.empty:
             near_min["Trusted_bool"] = near_min["Trusted"].apply(bool_from_str)
             near_map = near_min.set_index("CRISPR")
@@ -170,92 +178,139 @@ def summarise_dir(d: Path, merge_near_as_orphan: bool) -> dict:
             near_map = pd.DataFrame()
 
         valid_ops = set(intact_operons)
+
         for _, row in cc.iterrows():
             if str(row["Operon"]).strip() not in valid_ops:
                 continue
+
             crisprs = parse_list(row.get("CRISPRs",""))
+
             for c in crisprs:
                 if not near_map.empty and c in near_map.index and bool(near_map.loc[c, "Trusted_bool"]):
                     if c not in counted_arrays:
-                        spacers_sum += spacers_count_for_array(c, spacers_dir, fallback_repeats=near_map.loc[c, "N_repeats"])
+                        spacers_sum += spacers_count_for_array(
+                            c,
+                            spacers_dir,
+                            fallback_repeats=near_map.loc[c, "N_repeats"]
+                        )
                         counted_arrays.add(c)
 
     res["intact_spacers"] = int(spacers_sum)
 
-    # orphan：优先 crisprs_orphan.tab，否则 all - near 差集（仅 Trusted）
+    # Orphan arrays
     orphan_ids = set()
     orphan_sp = 0
+
     if not orph.empty:
         orph = ensure_col(orph, "CRISPR", 1)
         orph_min = orph[["CRISPR","Trusted","N_repeats"]].copy()
         orph_min["Trusted_bool"] = orph_min["Trusted"].apply(bool_from_str)
         orph_min = orph_min[orph_min["Trusted_bool"] == True].drop_duplicates(subset=["CRISPR"])
+
         for _, r in orph_min.iterrows():
             cid = str(r["CRISPR"])
-            if cid in counted_arrays:  # 已用于系统的阵列不再算 orphan
+
+            if cid in counted_arrays:
                 continue
+
             orphan_ids.add(cid)
-            orphan_sp += spacers_count_for_array(cid, spacers_dir, fallback_repeats=r["N_repeats"])
+            orphan_sp += spacers_count_for_array(
+                cid,
+                spacers_dir,
+                fallback_repeats=r["N_repeats"]
+            )
+
     else:
         if not allc.empty:
             allc = ensure_col(allc, "CRISPR", 1)
+
             all_min = allc[["CRISPR","Trusted","N_repeats"]].copy()
             all_min["Trusted_bool"] = all_min["Trusted"].apply(bool_from_str)
+
             near = ensure_col(near, "CRISPR", 1) if not near.empty else pd.DataFrame(columns=["CRISPR"])
             near_set = set(near["CRISPR"]) if not near.empty else set()
-            orphan_df = all_min[(all_min["Trusted_bool"] == True) & (~all_min["CRISPR"].isin(near_set))] \
-                        .drop_duplicates(subset=["CRISPR"])
+
+            orphan_df = all_min[
+                (all_min["Trusted_bool"] == True) &
+                (~all_min["CRISPR"].isin(near_set))
+            ].drop_duplicates(subset=["CRISPR"])
+
             for _, r in orphan_df.iterrows():
                 cid = str(r["CRISPR"])
+
                 if cid in counted_arrays:
                     continue
-                orphan_ids.add(cid)
-                orphan_sp += spacers_count_for_array(cid, spacers_dir, fallback_repeats=r["N_repeats"])
 
-    # 可选：把“near 但未计入系统的 Trusted 阵列”并入 orphan
+                orphan_ids.add(cid)
+                orphan_sp += spacers_count_for_array(
+                    cid,
+                    spacers_dir,
+                    fallback_repeats=r["N_repeats"]
+                )
+
+    # Optionally merge Trusted near-Cas arrays not assigned to any system
     if merge_near_as_orphan:
-        # 需要 near_min、counted_arrays；若 near 空则无事可做
+
         if 'near_min' not in locals():
             near = ensure_col(near, "CRISPR", 1) if not near.empty else pd.DataFrame(columns=["CRISPR","Trusted","N_repeats"])
             near_min = near[["CRISPR","Trusted","N_repeats"]].copy() if not near.empty else pd.DataFrame(columns=["CRISPR","Trusted","N_repeats"])
+
             if not near_min.empty:
                 near_min["Trusted_bool"] = near_min["Trusted"].apply(bool_from_str)
+
         if not near_min.empty:
             merge_ids = set()
             merge_sp = 0
-            # “near 且 Trusted”减去“已计入系统的阵列”和“orphan 已计入的阵列”
+
             for _, r in near_min.iterrows():
                 cid = str(r["CRISPR"])
+
                 if not bool(r["Trusted_bool"]):
                     continue
+
                 if cid in counted_arrays or cid in orphan_ids:
                     continue
+
                 merge_ids.add(cid)
-                merge_sp += spacers_count_for_array(cid, spacers_dir, fallback_repeats=r["N_repeats"])
+                merge_sp += spacers_count_for_array(
+                    cid,
+                    spacers_dir,
+                    fallback_repeats=r["N_repeats"]
+                )
+
             orphan_ids |= merge_ids
             orphan_sp += merge_sp
 
     res["orphan_trusted_arrays_count"] = int(len(orphan_ids))
-    res["orphan_trusted_spacers"]      = int(orphan_sp)
+    res["orphan_trusted_spacers"] = int(orphan_sp)
 
     return res
 
 # ───────── CLI ─────────
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("root", help="包含若干 *_cctyper 结果目录的根目录")
-    ap.add_argument("--pattern", default="*_cctyper", help="匹配结果目录（相对 root）的通配符")
+    ap.add_argument("root", help="Root directory containing multiple *_cctyper result folders")
+    ap.add_argument("--pattern", default="*_cctyper",
+                    help="Glob pattern used to identify result directories under root")
     ap.add_argument("--merge-near-as-orphan", action="store_true",
-                    help="把 Trusted 的 near 但未计入任何系统的阵列并入 orphan 计数")
+                    help="Merge Trusted near-Cas arrays that are not assigned to any system into orphan counts")
     args = ap.parse_args()
 
     root = Path(args.root).expanduser().resolve()
     dirs = [Path(p).resolve() for p in glob.glob(str(root / args.pattern))]
+
     if not dirs:
         sys.exit(f"[ERR] no dirs matched {args.pattern} under {root}")
 
-    rows = [summarise_dir(d, args["merge_near_as_orphan"] if isinstance(args, dict) else args.merge_near_as_orphan)
-            for d in sorted(dirs)]
+    rows = [
+        summarise_dir(
+            d,
+            args["merge_near_as_orphan"] if isinstance(args, dict)
+            else args.merge_near_as_orphan
+        )
+        for d in sorted(dirs)
+    ]
+
     pd.DataFrame(rows).to_csv(sys.stdout, sep="\t", index=False)
 
 if __name__ == "__main__":
