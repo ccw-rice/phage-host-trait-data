@@ -11,7 +11,7 @@ suppressPackageStartupMessages({
 set.seed(123)
 
 # =========================
-# 🔥 用你新文件（关键变化）
+# Use updated metadata file (key change)
 # =========================
 meta_file <- "/root/mcoa_project/data_raw/genome_phylum_dt.csv"
 
@@ -21,7 +21,7 @@ base_out  <- "/root/mcoa_project/mcoa_bootstrap_dt_balanced"
 dir.create(base_out, showWarnings=FALSE)
 
 # =========================
-# 工具函数
+# function tools
 # =========================
 get_rec_cols <- function(X){
 
@@ -52,7 +52,7 @@ clean_matrix <- function(X){
 }
 
 # =========================
-# 抽样函数（无ID bug）
+# Stratified sampling function (ID-safe version)
 # =========================
 sample_group_advanced <- function(sub_dt, target_n){
 
@@ -118,7 +118,7 @@ sample_group_advanced <- function(sub_dt, target_n){
 }
 
 # =========================
-# 🔥 读取新 meta（关键）
+# Load updated metadata
 # =========================
 meta <- fread(meta_file)
 
@@ -133,7 +133,7 @@ meta <- meta[is.finite(dt)]
 meta[, group := ifelse(dt < 5, "<5h", ">5h")]
 
 # =========================
-# 主循环
+# Main bootstrap loop
 # =========================
 for (i in 1:50){
 
@@ -148,7 +148,7 @@ for (i in 1:50){
   dir.create(ln_dir, showWarnings=FALSE)
 
   # =========================
-  # 抽样
+  # Sampling
   # =========================
   fast <- sample_group_advanced(meta[group=="<5h"], 500)
   slow <- sample_group_advanced(meta[group==">5h"], 500)
@@ -163,7 +163,7 @@ for (i in 1:50){
   ln_data <- list()
 
   # =========================
-  # 后续完全不变
+  # Remaining workflow unchanged
   # =========================
   for (f in files){
 
@@ -397,7 +397,7 @@ fwrite(
 )
 
 # =========================
-# 保存 samples
+# save samples
 # =========================
 
 S <- as.data.frame(acom$SynVar)
